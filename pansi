@@ -1,0 +1,858 @@
+#!/usr/bin/env bash
+
+function here_printf {
+  local format=${1:-"%b\n"}
+  local text
+  read -r -d '' text
+  
+  printf "${format}" "${text}"
+}
+
+function pansi::print_help {
+  local script_name="$(basename "$0")"
+  here_printf <<-HELP
+$(pansi --bold "USAGE:")
+  ${script_name} [-h|--help]
+  ${script_name} --color-table
+  ${script_name} [OPTIONS] <TEXT> [[OPTIONS] <TEXT>]...
+  
+$(pansi --bold "REFERENCE FLAGS:")
+  -h,--help       Print this help message.
+  --color-table   Print out a nicely formatted table of available colors and
+                  attributes.
+  
+$(pansi --bold "OPTIONS:")
+  --no-restore    Prevent the defaults from being set at the end of the command.
+                  By default the ANSI codes are cleared out at the end because
+                  typically you just want to modify the text passed to it, but
+                  sometimes it's nice to keep some of these settings around for
+                  subsequent text.
+  -n,--new-line   Insert a newline after the command finishes. By default no new
+                  line is inserted so that you can continue writing, and
+                  potentially use ${script_name} mid-text.
+                  
+                  This only occurs at the very end of the ${script_name} command, so
+                  if you are using the chaining format the newline won't be
+                  inserted until after everything.
+  --reset-color   Reset foreground and background color to default.
+  --reset-text    Reset forground, background, and attributes to default.
+
+  $(pansi --underline "Attributes"):
+    --bold                          Make text "$(pansi --bold "bold")"
+    --faint,--dim                   Make text "$(pansi --faint "faint")"
+    --italic                        Make text "$(pansi --italic "italic")"
+    --fraktur                       Change text to "$(pansi --fraktur "fraktur")" [Not often
+                                    supported]
+    --underline                     Make text "$(pansi --underline "underlined")"
+    --double-underline              Make text "$(pansi --double-underline "underlined twice!")" [Not often
+                                    supported]
+    --blink                         Make text "$(pansi --blink "blink")"
+    --reverse,--inverse             Invert background and foreground colors,
+                                    "$(pansi --reverse "Example")"
+    --invisible,--conceal           Make text "$(pansi --invisible "hidden")"
+    --strikethrough,--crossedout    Make text "$(pansi --strikethrough "crossed out")"
+    --frame                         Make text "$(pansi --frame "framed")" [Not often supported]
+    --encircle                      Make text "$(pansi --encircle "encircled")" [Not often supported]
+    --overline                      Make text "$(pansi --overline "overlined")" [Not often supported]
+    
+  $(pansi --underline "Foreground Color"):
+  
+    Any color flag can have '-intense' appended to it to get a slightly
+    brighter/lighter color.
+  
+    --black[-intense]     Color foreground "$(pansi --black "black")"
+    --red[-intense]       Color foreground "$(pansi --red "red")"
+    --green[-intense]     Color foreground "$(pansi --green "green")"
+    --yellow[-intense]    Color foreground "$(pansi --yellow "yellow")"
+    --blue[-intense]      Color foreground "$(pansi --blue "blue")"
+    --magenta[-intense]   Color foreground "$(pansi --magenta "magenta")"
+    --cyan[-intense]      Color foreground "$(pansi --cyan "cyan")"
+    --white[-intense]     Color foreground "$(pansi --white "white")"
+    --default             Reset foreground to it's default color
+    
+  $(pansi --underline "Background Color"):
+  
+    Similar to foreground color, you can append '-intense' to a background color
+    flag to get a slightly brighter/lighter.
+    
+    --bg-black[-intense]      Color background "$(pansi --bg-black "black")"
+    --bg-red[-intense]        Color background "$(pansi --bg-red "red")"
+    --bg-green[-intense]      Color background "$(pansi --bg-green --black "green")"
+    --bg-yellow[-intense]     Color background "$(pansi --bg-yellow --black "yellow")"
+    --bg-blue[-intense]       Color background "$(pansi --bg-blue --black "blue")"
+    --bg-magenta[-intense]    Color background "$(pansi --bg-magenta "magenta")"
+    --bg-cyan[-intense]       Color background "$(pansi --bg-cyan --black "cyan")"
+    --bg-white[-intense]      Color background "$(pansi --bg-grey --black "gray")"
+    --bg-default              Reset the background to it's default color
+    
+  $(pansi --underline "Color Aliases"):
+  
+    For the above foreground and background colors there are a few alias color
+    names. The format is the same, just sub in the alternative color name.
+    
+    $(pansi --italic "orange")
+        Alias for 'yellow' ($(pansi --bg-orange "Background") $(pansi --orange "Foreground"))
+    $(pansi --italic "grey,gray")
+        Alias for 'white' ($(pansi --bg-grey "Background") $(pansi --grey "Foreground"))
+    $(pansi --italic "dark-grey,dark-gray")
+        Alias for 'black-intense' ($(pansi --bg-dark-grey "Background") $(pansi --dark-grey "Foreground"))
+        
+    Additionally, instead of '[color]-intense', you can write either
+    'bright-[color]' or 'light-[color]'
+    as a modifier on any of the foreground or background colors.
+    
+    For background you would still prefix the above string with '--bg-'.
+    
+  $(pansi --underline "Cursor"):
+  
+    When a cursor option calls for an optional number parameter, it will default
+    to '1' if omitted.
+  
+    --up [n]                        Move cursor up by 'n' rows
+    --down [n]                      Move cursor down by 'n' rows
+    --forward,--fwd [n]             Move cursor forward by 'n' columns
+    --backward,--back [n]           Move cursor backward by 'n' columns
+    --next-line,--next-row [n]      Move cursor to the beginning of the line 'n'
+                                    rows down
+    --prev-line,--prev-row [n]      Move cursor to the beginning of the line 'n'
+                                    rows up
+    --row.--line [n]                Move cursor to the 'n' row. Not relative to
+                                    current position
+    --column,--col [n]              Move cursor to the 'n' column. Not relative
+                                    to current position
+    --position [[row][,col]]        Move cursor to the specified 'row' and
+                                    'col'. Missing options default to '1', if
+                                    ommitted completely it will default to
+                                    position '1,1'
+    --tab-forward,--tab-fwd [n]     Move cursor forward 'n' tab stops
+    --tab-backward,--tab-back [n]   Move cursor backward 'n' tab stops
+    
+    --save-cursor                   Saves the cursor position. Restores the
+                                    cursor after command finishes, unless
+                                    '--no-restore' is also used
+    --restore-cursor                Restore the cursor to it's saved position
+    --hide-cursor                   Hide the cursor during command execution.
+                                    Cursor will be shown after the command
+                                    finishes, unless '--no-restore' is also used
+    --show-cursor                   Show a cursor if hidden
+    
+  $(pansi --underline "Display Manipulation"):
+    --insert-chars [n]        Insert blank characters, shifting the line right
+    --erase-chars [n]         Erase 'n' characters
+    --repeat-char [n]         Repeat the last character 'n' times
+    --erase-display [mode]    Clears part of the screen according to 'mode',
+                              cursor position does not change:
+                              $(pansi --italic "down|0")    From the cursor to the bottom of the
+                                        screen (Default)
+                              $(pansi --italic "up|1")      From the cursor to the beginning of the
+                                        screen
+                              $(pansi --italic "all|2")     Entire visible screen, sometimes placing
+                                        the cursor in the upper left corner
+                              $(pansi --italic "scroll|3")  Same as 'all' but also clears the
+                                        scrollback buffer
+    --erase-line [mode]       Erase part of the line according to the 'mode',
+                              cursor position does not change:
+                              $(pansi --italic "right|0")   From the cursor to the end of the line
+                                        (Default)
+                              $(pansi --italic "left|1")    From the cursor to the beginning of the
+                                        line
+                              $(pansi --italic "all|2")     The entire line
+    --delete-lines [n]        Erase 'n' lines starting with current and moving
+                              up. Lines below move up
+    --insert-lines [n]        Add 'n' blank lines above current. The current
+                              line and below move down
+    --scroll-up [n]           Entire display moved up, new lines added at bottom
+                              of screen
+    --scroll-down [n]         Entire display moved down, new lines added at top
+                              of screen
+HELP
+}
+
+function pansi::color_value {
+  local value
+  case "$1" in
+  black)
+    value=0
+    ;;
+  red)
+    value=1
+    ;;
+  green)
+    value=2
+    ;;
+  yellow|orange)
+    value=3
+    ;;
+  blue)
+    value=4
+    ;;
+  magenta)
+    value=5
+    ;;
+  cyan)
+    value=6
+    ;;
+  grey|gray|white)
+    value=7
+    ;;
+  darkgrey|darkgray|intensegrey|intensegray|ltblack|lightblack|brightblack|intenseblack)
+    value=8
+    ;;
+  ltred|lightred|brightred|intensered)
+    value=9
+    ;;
+  ltgreen|lightgreen|brightgreen|intensegreen)
+    value=10
+    ;;
+  ltyellow|lightyellow|brightyellow|intenseyellow|ltorange|lightorange|brightorange|intenseorange)
+    value=11
+    ;;
+  ltblue|lightblue|brightblue|intenseblue)
+    value=12
+    ;;
+  ltmagenta|lightmagenta|brightmagenta|intensemagenta)
+    value=13
+    ;;
+  ltcyan|lightcyan|brightcyan|intensecyan)
+    value=14
+    ;;
+  ltwhite|lightwhite|brightwhite|intensewhite)
+    value=15
+    ;;
+  esac
+  
+  printf "${value}"
+}
+
+function pansi::die {
+  local _ret=$2
+  test -n "$_ret" || _ret=1
+  test "$_PRINT_HELP" == true && pansi::print_help >&2
+  echo "$1" >&2
+  exit ${_ret}
+}
+
+function pansi::begins_with_short_option {
+  local first_option all_short_options
+  all_short_options='hn'
+  first_option="${1:0:1}"
+  test "$all_short_options" = "${all_short_options/$first_option/}" && return 1 || return 0
+}
+
+function pansi::fail_short_options {
+ pansi::die "The short option '${1}' can't be decomposed to ${1:0:2} and -${1:2}, because ${1:0:2} doesn't accept value and '-${1:2:1}' doesn't correspond to a short option."
+}
+
+function pansi::print_attributes {
+  if [[ ${#attributes[@]} -gt 0 ]]; then
+    local IFS=\;
+    pansi::print_code "${attributes[*]}m"
+    attributes=()
+  fi
+}
+
+function pansi::print_foreground {
+  if [[ -n ${foreground:+x} ]]; then
+    if [[ "${foreground}" != "default" ]]; then
+      pansi::print_code "38;5;$(pansi::color_value "${foreground}")m"
+    else
+      pansi::print_code "39m"
+    fi
+    unset foreground
+  fi
+}
+
+function pansi::print_background {
+  if [[ -n ${background:+x} ]]; then
+    if [[ "${background}" != "default" ]]; then
+      pansi::print_code "48;5;$(pansi::color_value "${background}")m"
+    else
+      pansi::print_code "49m"
+    fi
+    unset background
+  fi
+}
+
+function pansi::print_color_codes {
+  pansi::print_attributes
+  pansi::print_foreground
+  pansi::print_background
+}
+
+function pansi::print_code {
+  local ESC=$'\033'
+  local CSI="${ESC}["
+  
+  printf "%b" "${CSI}$(IFS=; printf "$*")"
+}
+
+function pansi::color_table {
+    printf "%s\n"                   "$(pansi --underline "Frequently Supported:")"
+    printf 'bold %s               ' "$(pansi --bold "Sample")"
+    printf 'faint %s              ' "$(pansi --faint "Sample")"
+    printf 'italic %s\n'            "$(pansi --italic "Sample")"
+    printf 'underline %s          ' "$(pansi --underline "Sample")"
+    printf 'blink %s              ' "$(pansi --blink "Sample")"
+    printf 'inverse %s\n'           "$(pansi --inverse "Sample")"
+    printf 'invisible %s\n'         "$(pansi --invisible "Sample")"
+    printf "\n%s\n"                   "$(pansi --underline "Less Frequently Supported:")"
+    printf 'strikethrough %s      ' "$(pansi --strikethrough "Sample")"
+    printf 'fraktur %s            ' "$(pansi --fraktur "Sample")"
+    printf 'double-underline %s\n'  "$(pansi --double-underline "Sample")"
+    printf 'frame %s              ' "$(pansi --frame "Sample")"
+    printf 'encircle %s           ' "$(pansi --encircle "Sample")"
+    printf 'overline %s\n'          "$(pansi --overline "Sample")"
+    printf '\n'
+    
+    printf "%s\n"                   "$(pansi --underline "Colors:")"
+    printf '             black   red     green   yellow  blue    magenta cyan    white   default\n'
+    local FNB_LOWER="$(pansi --faint --no-restore f --default-attributes)n$(pansi --bold --no-restore b --default-attributes)"
+    local FNB_UPPER="$(pansi --faint --no-restore F --default-attributes)N$(pansi --bold --no-restore B --default-attributes)"
+    local color_cycle=( black red green yellow blue magenta cyan white default )
+    local BG FG PADDED
+    for BG in "${color_cycle[@]}"; do
+        PADDED="bg-${BG}           "
+        PADDED="${PADDED:0:13}"
+        printf '%s' "$PADDED"
+        local FG
+        for FG in "${color_cycle[@]}"; do
+          if [[ "${FG}" == "default" ]]; then
+            FG="default-fg"
+          fi
+          pansi --${FG} --bg-${BG} "${FNB_LOWER}"
+          if [[ "${FG}" != "default-fg" ]]; then
+            pansi --${FG}-intense --bg-${BG} "${FNB_UPPER}"
+          fi
+          printf "  "
+        done
+        printf '\n'
+        
+        if [[ "${BG}" != "default" ]]; then
+          printf '  +intense   '
+          for FG in "${color_cycle[@]}"; do
+            if [[ "${FG}" == "default" ]]; then
+              FG="default-fg"
+            fi
+            pansi --bg-${BG}-intense --${FG} "${FNB_LOWER}"
+            if [[ "${FG}" != "default-fg" ]]; then
+              pansi --${FG}-intense --bg-${BG}-intense "${FNB_UPPER}"
+            fi
+            printf "  "
+          done
+          printf '\n'
+      fi
+    done
+    printf '\n'
+    printf "%s\n" "$(pansi --italic "Legend:")"
+    printf '    Normal color:  f = faint, n = normal, b = bold.\n'
+    printf '    Intense color:  F = faint, N = normal, B = bold.\n'
+}
+
+function pansi {
+  local foreground background
+  local attributes=()
+  local newline=false
+  local restore=true
+  
+  if [[ $# -eq 0 ]]; then
+    pansi::print_help
+    exit 0
+  fi
+  
+  while [[ $# -gt 0 ]]; do
+    local _key="$1"
+    case "${_key}" in
+    # Text Attributes
+    #----------------
+    --bold|--bright)
+      attributes+=( 1 )
+      ;;
+    --dim|--faint)
+      attributes+=( 2 )
+      ;;
+    --reset-weight|--no-bold|--no-faint|--no-bright|--no-dim)
+      attributes+=( 22 )
+      ;;
+    --italic)
+      attributes+=( 3 )
+      ;;
+    --fraktur)
+      attributes+=( 20 )
+      ;;
+    --reset-type-style|--reset-italic|--reset-fraktur|--no-italic|--no-fraktur)
+      attributes+=( 23 )
+      ;;
+    --smul|--underline)
+      attributes+=( 4 )
+      ;;
+    --double-underline)
+      attributes+=( 21 )
+      ;;
+    --reset-underline|--no-underline|--no-smul|--no-double-underline)
+      attributes+=( 24 )
+      ;;
+    --blink)
+      attributes+=( 5 )
+      ;;
+    --reset-blink|--no-blink)
+      attributes+=( 25 )
+      ;;
+    --rev|--reverse|--inverse)
+      attributes+=( 7 )
+      ;;
+    --reset-inverse|--reset-reverse|--reset-rev|--no-inverse|--no-reverse|--no-rev)
+      attributes+=( 27 )
+      ;;
+    --invis|--invisible|--conceal|--no-reveal)
+      attributes+=( 8 )
+      ;;
+    --reveal|--reset-conceal|--reset-invisible|--reset-invis|--no-conceal|--no-invisible|--no-invis)
+      attributes+=( 28 )
+      ;;
+    --strike|--strikethrough|--strike-through|--crossed-out|--crossedout)
+      attributes+=( 9 )
+      ;;
+    --reset-strike|--reset-strikethrough|--reset-strike-through|--reset-crossed-out|--reset-crossedout|--no-strike|--no-strikethrough|--no-strike-through|--no-crossed-out|--no-crossedout)
+      attributes+=( 29 )
+      ;;
+    --frame)
+      attributes+=( 51 )
+      ;;
+    --encircle)
+      attributes+=( 52 )
+      ;;
+    --reset-frame|--no-frame|--reset-encircle|--no-encircle)
+      attributes+=( 54 )
+      ;;
+    --overline)
+      attributes+=( 53 )
+      ;;
+    --reset-overline|--no-overline)
+      attributes+=( 55 )
+      ;;
+    --reset-attrib|--reset-attributes|--no-attributes|--no-attrib|--default-attributes|--default-attrib)
+      attributes=( 22 23 24 25 27 28 29 54 55 )
+      ;;
+      
+    # Foreground Colors
+    #------------------
+    --black)
+      foreground="black"
+      ;;
+    --red)
+      foreground="red"
+      ;;
+    --green)
+      foreground="green"
+      ;;
+    --yellow|--orange)
+      foreground="yellow"
+      ;;
+    --blue)
+      foreground="blue"
+      ;;
+    --magenta)
+      foreground="magenta"
+      ;;
+    --cyan)
+      foreground="cyan"
+      ;;
+    --gray|--grey|--white)
+      foreground="white"
+      ;;
+    --black-intense|--gray-intense|--grey-intense|--light-black|--bright-black|--dark-gray|--dark-grey)
+      foreground="lightblack"
+      ;;
+    --red-intense|--light-red|--bright-red)
+      foreground="lightred"
+      ;;
+    --green-intense|--light-green|--bright-green)
+      foreground="lightgreen"
+      ;;
+    --yellow-intense|--light-yellow|--bright-yellow|--orange-intense|--light-orange|--bright-orange)
+      foreground="lightyellow"
+      ;;
+    --blue-intense|--light-blue|--bright-blue)
+      foreground="lightblue"
+      ;;
+    --magenta-intense|--light-magenta|--bright-magenta)
+      foreground="lightmagenta"
+      ;;
+    --cyan-intense|--light-cyan|--bright-cyan)
+      foreground="lightcyan"
+      ;;
+    --white-intense|--bright-white|--light-white)
+      foreground="lightwhite"
+      ;;
+    --reset-foreground|--default-foreground|--reset-fg|--default-fg|--fg-default|--default)
+      foreground="default"
+      ;;
+      
+    # Background Color
+    #-----------------
+    --bg-black)
+      background="black"
+      ;;
+    --bg-red)
+      background="red"
+      ;;
+    --bg-green)
+      background="green"
+      ;;
+    --bg-yellow|--bg-orange)
+      background="yellow"
+      ;;
+    --bg-blue)
+      background="blue"
+      ;;
+    --bg-magenta)
+      background="magenta"
+      ;;
+    --bg-cyan)
+      background="cyan"
+      ;;
+    --bg-gray|--bg-grey|--bg-white)
+      background="white"
+      ;;
+    --bg-black-intense|--bg-gray-intense|--bg-grey-intense|--bg-light-black|--bg-bright-black|--bg-dark-gray|--bg-dark-grey)
+      background="lightblack"
+      ;;
+    --bg-red-intense|--bg-light-red|--bg-bright-red)
+      background="lightred"
+      ;;
+    --bg-green-intense|--bg-light-green|--bg-bright-green)
+      background="lightgreen"
+      ;;
+    --bg-yellow-intense|--bg-light-yellow|--bg-bright-yellow|--bg-orange-intense|--bg-light-orange|--bg-bright-orange)
+      background="lightyellow"
+      ;;
+    --bg-blue-intense|--bg-light-blue|--bg-bright-blue)
+      background="lightblue"
+      ;;
+    --bg-magenta-intense|--bg-light-magenta|--bg-bright-magenta)
+      background="lightmagenta"
+      ;;
+    --bg-cyan-intense|--bg-light-cyan|--bg-bright-cyan)
+      background="lightcyan"
+      ;;
+    --bg-white-intense|--bg-light-white|--bg-bright-white)
+      background="lightwhite"
+      ;;
+    --reset-background|--default-background|--reset-bg|--default-bg|--bg-default)
+      background="default"
+      ;;
+      
+    # Reset
+    #------------
+    --reset-color)
+      foreground="default"
+      background="default"
+      ;;
+    --reset-text)
+      pansi::print_code "m"
+      ;;
+    --reset)
+      pansi::print_code "m" # Restore Colors and Attributes
+      pansi::print_code "u" # Restore Cursor position
+      pansi::print_code "?25h" # Show Cursor if hidden
+      
+      ;;
+    # Cursor Control
+    #---------------
+    --up)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}" "A"
+      ;;
+    --down)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}B"
+      ;;
+    --forward|--fwd|--right)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}C"
+      ;;
+    --backward|--back|--left)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}D"
+      ;;
+    --next-line|--next-row)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}E"
+      ;;
+    --prev-line|--prev-row)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}F"
+      ;;
+    --row)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}d"
+      ;;
+    --column|--col)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}G"
+      ;;
+    --position)
+      pansi::print_color_codes
+      local _coords="1,1"
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]*[,;]\?[0-9]\+$" <<< "$2" ; then
+        _coords="$2"
+        shift
+      fi
+      
+      local coords
+      IFS=,\; read -ra coords <<< "${_coords}"
+      pansi::print_code "${coords[0]};${coords[1]}d"
+      ;;
+    --tab-forward|--tab-fwd|--tab-right)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}I"
+      ;;
+    --tab-backward|--tab-back|--tab-left)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}Z"
+      ;;
+    --save-cursor)
+      pansi::print_color_codes
+      pansi::print_code "s"
+      ;;
+    --restore-cursor)
+      pansi::print_color_codes
+      pansi::print_code "u"
+      ;;
+    --hide-cursor)
+      pansi::print_color_codes
+      pansi::print_code "?25l"
+      ;;
+    --show-cursor)
+      pansi::print_color_codes
+      pansi::print_code "?25h"
+      ;;
+      
+    # Display Manipulation
+    #---------------------
+    --insert-chars)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}@"
+      ;;
+    --erase-chars)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}X"
+      ;;
+    --repeat-char)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}b"
+      ;;
+    --erase-display)
+      pansi::print_color_codes
+      local mode=0
+      if [[ $# -gt 1 ]]; then
+        case "$2" in
+        0|down)
+          mode=0
+          shift
+          ;;
+        1|up)
+          mode=1
+          shift
+          ;;
+        2|all)
+          mode=2
+          shift
+          ;;
+        3|scroll)
+          mode=3
+          shift
+          ;;
+        esac
+      fi
+      pansi::print_code "${mode}J"
+      ;;
+    --erase-line)
+      pansi::print_color_codes
+      local mode=0
+      if [[ $# -gt 1 ]]; then
+        case "$2" in
+        0|right)
+          mode=0
+          shift
+          ;;
+        1|left)
+          mode=1
+          shift
+          ;;
+        2|all)
+          mode=2
+          shift
+          ;;
+        esac
+      fi
+      pansi::print_code "${mode}K"
+      ;;
+    --delete-lines)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}M"
+      ;;
+    --insert-lines)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}L"
+      ;;
+    --scroll-up)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}S"
+      ;;
+    --scroll-down)
+      pansi::print_color_codes
+      local num=1
+      if [[ $# -gt 1 ]] && grep -qe "^[0-9]\+$" <<< "$2" ; then
+        num="$2"
+        shift
+      fi
+      pansi::print_code "${num}T"
+      ;;
+      
+    # One-Offs and Flags
+    #-------------------
+    -h|--help)
+      pansi::print_help
+      exit 0
+      ;;
+    -h*)
+      pansi::print_help
+      exit 0
+      ;;
+    --color-table)
+      pansi::color_table
+      exit 0
+      ;;
+    -n|--newline|--no-newline)
+      if [[ "${_key:0:5}" = "--no-" ]]; then
+        newline=false
+      else
+        newline=true
+      fi
+      ;;
+    -n*)
+      newline=true
+      _next="${_key##-n}"
+      if test -n "${_next}" -a "${_next}" != "${_key}"; then
+        pansi::begins_with_short_option "${_next}" && shift && set -- "-n" "-${_next}" "$@" || pansi::fail_short_options "${_key}"
+      fi
+      ;;
+    --no-restore)
+      restore=false
+      ;;
+    # Positionals or Text
+    #--------------------
+    *)
+      pansi::print_color_codes
+      printf "%s" "${_key}"
+      ;;
+    esac
+    shift
+  done
+  
+  if [[ ${#attributes[@]} -gt 0 ]]; then
+    pansi::print_attributes
+  fi
+  if [[ -n ${foreground:+x} ]]; then
+    pansi::print_foreground
+  fi
+  if [[ -n ${background:+x} ]]; then
+    pansi::print_background
+  fi
+  
+  if [[ ${restore} == true ]]; then
+    pansi::print_code "m" # Restore Colors and Attributes
+    pansi::print_code "u" # Restore Cursor position
+    pansi::print_code "?25h" # Show Cursor if hidden
+  fi
+  
+  if [[ ${newline} == true ]]; then
+    printf "\n"
+  fi
+}
+
+# Run if not sourced
+if [[ "$0" == "${BASH_SOURCE[0]}" ]]; then
+    pansi "$@"
+fi
