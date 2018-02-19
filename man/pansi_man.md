@@ -32,7 +32,7 @@ terminal, and how the colors look.
 :	Prevent the defaults from being set at the end of the command. By default the ANSI codes are cleared out at the end because typically you just want to modify the text passed to it, but sometimes it's nice to keep some of these settings around for subsequent text.
 
 -n, \--new-line
-:	Insert a newline after the command finishes. By default no new line is inserted so that you can continue writing, and potentially use ${script_name} mid-text.  
+:	Insert a newline after the command finishes. By default no new line is inserted so that you can continue writing, and potentially use pansi mid-text.  
 
 	This only occurs at the very end of the ${script_name} command, so if you are using the chaining 
 	format the newline won't be inserted until after everything.
@@ -78,33 +78,15 @@ terminal, and how the colors look.
 \--overline
 :	Make text overlined [Not often supported]
 
-## Foreground Color:
+## Colors:
 
-All foreground colors except 'default' can optionally have '-intense' appended to the end of the option. Doing so will use the alternative (lighter/brighter) version of the specified color.
-
-\--black[-intense]
-:	Color the foreground text with the terminal's "black" color
-
-\--red[-intense]
-:	Color the foreground text with the terminal's "red" color
-
-\--green[-intense]
-:	Color the foreground text with the terminal's "green" color
-
-\--yellow[-intense], \--orange[-intense]
-:	Color the foreground text with the terminal's "yellow" color
-
-\--blue[-intense]
-:	Color the foreground text with the terminal's "blue" color
-
-\--magenta[-intense]
-:	Color the foreground text with the terminal's "magenta" color
-
-\--cyan[-intense]
-:	Color the foreground text with the terminal's "cyan" color
-
-\--white[-intense]
-:	Color the foreground text with the terminal's "white" color
+\--fg <*colorname*>[*-intense*]
+:	Set the foreground text color to the specified *colorname*.
+	
+    The color name options are:
+    *black*, *red*, *green*, *yelow*, *blue*, *magenta*, *cyan*, and *white*.
+	
+	Additionally you can get an alternate (lighter/brighter) color by appending "-intense" to the colorname.
 
 \--default
 :	Reset foreground text color to the terminal's default color
@@ -113,29 +95,13 @@ All foreground colors except 'default' can optionally have '-intense' appended t
 
 All background colors except 'default' can optionally have '-intense' appended to the end of the option. Doing so will use the alternative (lighter/brighter) version of the specified color.
 
-\--bg-black[-intense]
-:	Color the text background with the terminal's "black" color  
-
-\--bg-red[-intense]
-:	Color the text background with the terminal's "red" color
-
-\--bg-green[-intense]
-:	Color the text background with the terminal's "green" color
-
-\--bg-yellow[-intense], \--bg-orange[-intense]
-:	Color the text background with the terminal's "yellow" color
-
-\--bg-blue[-intense]
-:	Color the text background with the terminal's "blue" color
-
-\--bg-magenta[-intense]
-:	Color the text background with the terminal's "magenta" color
-
-\--bg-cyan[-intense]
-:	Color the text background with the terminal's "cyan" color
-
-\--bg-white[-intense]
-:	Color the text background with the terminal's "white" color
+\--bg <*colorname*>[*-intense*]
+:	Set the background text color to the specified *colorname*.
+	
+    The color name options are:
+    *black*, *red*, *green*, *yelow*, *blue*, *magenta*, *cyan*, and *white*.
+	
+	Additionally you can get an alternate (lighter/brighter) color by appending "-intense" to the colorname.
 
 \--bg-default
 :	Reset text background color to the terminal's default color
@@ -144,16 +110,16 @@ All background colors except 'default' can optionally have '-intense' appended t
 
 For both foreground and background, there is a set of grey color aliases, that map to the following colors:
 
-\--[bg-]grey, \--[bg-]gray
+grey, gray
 :	Alias for "white"
 
-\--[bg-]dark-grey, \--[bg-]dark-gray
+dark-grey, dark-gray
 : Alias for "black-intense"
 
 Additionally there is an alternative way to call for the "intense" colors, by prefixing the color name with either "light-" or "bright-"
 
-	--light-red, --bright-red
-	--bg-light-blue, --bg-bright-blue
+**--fg** light-red, **--fg** bright-red  
+**--bg** light-blue, **--bg** bright-blue
 
 ## Cursor:
 
@@ -265,13 +231,39 @@ Optional number arguments on cursor options will default to "1"
 
 Print a installer progress message, with a bold blue arrow, then default description text:
 
-	pansi --blue --bold "==>" --reset-text " Starting a new installation"
+	pansi --fg blue --bold "==>" --reset-text " Starting a new installation"
 
 Piping Pansi to other tools:
 
-	cat <<< "$(pansi --underline "Holiday"): $(pansi --bright-green "St. Patrick's Day")"
+	cat <<< "$(pansi --underline "Holiday"): $(pansi --fg bright-green "St. Patrick's Day")"
 
 Progress Indicator:
 
-	while [[ "$progress" -lt 100 ]]; do
+	progress=0
+	meter_width=80
+	readout=$(( ${meter_width} - 3 ))
+	fill_space=$(( ${meter_width} - 7 ))
+
+	pansi --no-restore --hide-cursor --bold "[" --forward ${fill_space} "] 0%"
+	while [[ ${progress} -le 100 ]]; do
+	  pansi --no-restore --column ${readout} --erase-line right "${progress}%" --column 2
+  
+	  fill=$(printf "%.0f" $(bc -l <<< "(${progress} / 100) * ${fill_space}"))
+	  if [[ ${fill} -le 1 ]]; then
+	    printf "%s" ">"
+	  elif [[ $progress -lt 25 ]]; then
+	    pansi --no-restore --erase-chars ${fill_space} "=" --repeat-char $(( ${fill}-1 )) ">"
+	  elif [[ $progress -lt 50 ]]; then
+	    pansi --no-restore --erase-chars ${fill_space} --fg blue "=" --repeat-char $(( ${fill}-1 )) ">"
+	  elif [[ $progress -lt 75 ]]; then
+	    pansi --no-restore --erase-chars ${fill_space} --fg cyan "=" --repeat-char $(( ${fill}-1 )) ">"
+	  elif [[ $progress -lt 100 ]]; then
+	    pansi --no-restore --erase-chars ${fill_space} --fg green "=" --repeat-char $(( ${fill}-1 )) ">"
+	  elif [[ $progress -eq 100 ]]; then
+	    pansi --newline --col --fg green "[=" --repeat-char $(( ${fill_space}-1 )) "]"
+	  fi
+  
+	  sleep 0.01
+	  (( progress++ ))
+	done
 		
