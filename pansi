@@ -164,6 +164,7 @@ HELP
 }
 
 function pansi::color_value {
+  local value
   local intense=false
   local name="$(sed -nE -e 's/^(intense|bright|light)[-_ \.]?([[:alpha:]]+[-_ \.]?[[:alpha:]]*)$/\"\2\"/p' \
   -e 's/^([[:alpha:]]+[-_ \.]?[[:alpha:]]*)[-_ \.]?(intense|bright|light)$/\"\1\"/p' <<< "$1")"
@@ -177,7 +178,7 @@ function pansi::color_value {
   name="$(tr '[:upper:]' '[:lower:]' <<< "${name}" | tr -Cd '[:alnum:]')"
   
   case "$name" in
-  [0-9]|1[0-5])
+  [0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])
     value=$name
     ;;
   default)
@@ -217,6 +218,10 @@ function pansi::color_value {
   
   if [[ "$intense" == true ]] && [[ $value -lt 8 ]] && [[ $value -ge 0 ]]; then
     (( value+=8 ))
+  fi
+  
+  if [[ -z ${value:+x} ]]; then
+    return 1
   fi
   
   printf "%i" "${value}"
@@ -295,6 +300,36 @@ function pansi::color_table {
     printf "%s\n" "$(pansi --italic "Legend:")"
     printf '    Normal color:  f = faint, n = normal, b = bold.\n'
     printf '    Intense color:  F = faint, N = normal, B = bold.\n'
+    
+    printf "%s\n\n "                   "$(pansi --underline "Full Color Table:")"
+    
+    local colorlist=()
+    colorlist+=( $(seq 16 21) )
+    colorlist+=( $(seq 27 22) )
+    colorlist+=( $(seq 28 33) )
+    colorlist+=( $(seq 39 34) )
+    colorlist+=( $(seq 40 45) )
+    colorlist+=( $(seq 51 46) )
+    colorlist+=( $(seq 52 57) )
+    colorlist+=( $(seq 63 58) )
+    colorlist+=( $(seq 64 69) )
+    colorlist+=( $(seq 75 70))
+    
+    local i
+    count=1
+    for i in "${colorlist[@]}"; do
+    # for (( i = 16; i < 232; i++ )); do
+      local cell=" $i"
+      if [[ $i -lt 100 ]]; then
+        cell="${cell} "
+      fi
+      pansi --bg $i --fg bright-white "${cell}"
+      
+      if (( ${count} % 12 == 0 )); then
+        printf "\n "
+      fi
+      (( count++ ))
+    done
 }
 
 function pansi {
@@ -674,10 +709,34 @@ function pansi {
       ;;
     # Positionals or Text
     #--------------------
+    --*)
+      local command=${_key#--}
+      local is_bg=false
+      if grep -qa "^bg-" <<< "$command"; then
+        is_bg=true
+        command=${command#bg-}
+      fi
+      
+      local color=$(pansi::color_value "$command")
+      if [[ -n ${color:+x} ]]; then
+        local aspect=38
+        if [ "$is_bg" == true ]; then
+          (( aspect+=10 ))
+        fi
+        if [[ color -gt 0 ]]; then
+          output="${output}${CSI}${aspect};5;${color}m"
+        else
+          output="${output}${CSI}$(( ${aspect}+1 ))m"
+        fi
+      fi
+      ;;
+    --)
+      shift
+      output="${output}$@"
+      break
+      ;;
     *)
-        printf "%b%s" "${output}" "${_key}"
-        # printf "%s" "${_key}"
-        output=""
+        output="${output}${_key}"
       ;;
     esac
     shift
